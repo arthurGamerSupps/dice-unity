@@ -70,11 +70,11 @@ public class GameManager : MonoBehaviour {
     }
 
     private void LogFinalRoundState() {
-        Debug.Log("=== ROUND COMPLETE ===");
+        Debug.Log("\n=== Final Results ===");
         foreach (var diceId in diceStopped.Keys.OrderBy(k => k)) {
             int number = diceZone.GetDiceNumber(diceId);
-            Debug.Log($"Final Die {diceId} result: {number}");
+            Debug.Log($"Die {diceId}: {number}");
         }
-        Debug.Log("===================");
+        Debug.Log("===================\n");
     }
 } 

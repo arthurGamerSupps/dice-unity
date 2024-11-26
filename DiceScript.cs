@@ -32,7 +32,7 @@ public class DiceScript : MonoBehaviour {
 		transform.rotation = Quaternion.identity;
 		rb.linearVelocity = Vector3.zero;
 		rb.angularVelocity = Vector3.zero;
-		rb.AddForce(transform.up * 500);
+		rb.AddForce(transform.up * 100);
 		rb.AddTorque(dirX, dirY, dirZ);
 
 		Debug.Log($"Die {diceId} rolled with forces: " +

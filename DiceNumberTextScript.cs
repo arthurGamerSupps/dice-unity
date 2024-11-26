@@ -6,9 +6,8 @@ using System.Linq;
 
 public class DiceNumberTextScript : MonoBehaviour {
 
-	public int diceId;
 	Text text;
-	private int previousDiceNumber = -1;
+	private int previousSum = -1;
 	
 	// Use this for initialization
 	void Start () {
@@ -17,10 +16,18 @@ public class DiceNumberTextScript : MonoBehaviour {
 	
 	// Update is called once per frame
 	void Update () {
-		int currentNumber = GameManager.Instance.diceZone.GetDiceNumber(diceId);
-		if (currentNumber != previousDiceNumber) {
-			previousDiceNumber = currentNumber;
-			text.text = $"Dice {diceId}: {currentNumber}";
+		// Get all dice numbers and sum them
+		int currentSum = 0;
+		var diceZone = GameManager.Instance.diceZone;
+		var allDice = FindObjectsOfType<DiceScript>();
+		
+		foreach (var die in allDice) {
+			currentSum += diceZone.GetDiceNumber(die.diceId);
+		}
+
+		if (currentSum != previousSum) {
+			previousSum = currentSum;
+			text.text = $"{currentSum}";
 		}
 	}
 }

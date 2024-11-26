@@ -9,6 +9,8 @@ public class DiceCheckZoneScript : MonoBehaviour {
 	private Dictionary<int, string> lastFaceCollisions = new Dictionary<int, string>();
 	private float logInterval = 0.5f;
 	private float nextLogTime = 0f;
+	private const float VELOCITY_THRESHOLD = 0.05f;
+	private const float ANGULAR_VELOCITY_THRESHOLD = 0.05f;
 
 	void OnTriggerStay(Collider col) {
 		if (col == null) return;
@@ -36,31 +38,55 @@ public class DiceCheckZoneScript : MonoBehaviour {
 			diceStopped[dice.diceId] = false;
 		}
 
-		if (!diceStopped[dice.diceId] && diceRb.linearVelocity.sqrMagnitude < 0.001f) {
+		if (!diceStopped[dice.diceId] && 
+			diceRb.linearVelocity.sqrMagnitude < VELOCITY_THRESHOLD && 
+			diceRb.angularVelocity.sqrMagnitude < ANGULAR_VELOCITY_THRESHOLD) {
 			StartCoroutine(ConfirmDiceStopped(col, dice, diceRb));
 		}
 	}
 
 	private void LogCurrentFaceContacts() {
-		Debug.Log("=== Current Face Contacts ===");
-		foreach (var contact in lastFaceCollisions.OrderBy(k => k.Key)) {
-			Debug.Log(contact.Value);
-		}
+		// Remove this periodic logging since it's not helpful
+		// We'll only log when dice actually stop
 	}
 
 	private IEnumerator ConfirmDiceStopped(Collider col, DiceScript dice, Rigidbody diceRb) {
-		yield return new WaitForSeconds(0.5f);
+		yield return new WaitForSeconds(0.25f);
 		
-		if (diceRb.linearVelocity.sqrMagnitude < 0.001f && !diceStopped[dice.diceId]) {
-			diceStopped[dice.diceId] = true;
+		if (diceRb.linearVelocity.sqrMagnitude < VELOCITY_THRESHOLD && 
+			diceRb.angularVelocity.sqrMagnitude < ANGULAR_VELOCITY_THRESHOLD && 
+			!diceStopped[dice.diceId]) {
 			
 			int faceNumber = GetFaceNumberFromCollider(col, dice.diceId);
-			if (faceNumber != -1) {
-				diceNumbers[dice.diceId] = faceNumber;
-				Debug.Log($"Die {dice.diceId} STOPPED on face {faceNumber}");
-				GameManager.Instance.DieStopped(dice.diceId, faceNumber);
+			if (faceNumber == -1) {
+				// Die hasn't landed properly - help it complete its rotation
+				StartCoroutine(AdjustDiceRotation(dice, diceRb));
+				yield break;
 			}
+
+			diceStopped[dice.diceId] = true;
+			diceNumbers[dice.diceId] = faceNumber;
+			Debug.Log($"[Dice Result] Die {dice.diceId}: {faceNumber}");
+			GameManager.Instance.DieStopped(dice.diceId, faceNumber);
 		}
+	}
+
+	private IEnumerator AdjustDiceRotation(DiceScript dice, Rigidbody diceRb) {
+		// Find the closest face-down orientation
+		Quaternion currentRotation = dice.transform.rotation;
+		Vector3 up = currentRotation * Vector3.up;
+		float angle = Vector3.Angle(up, Vector3.up);
+		
+		// Apply a small torque to help it rotate
+		Vector3 torqueDirection = Vector3.Cross(up, Vector3.up);
+		if (torqueDirection.magnitude > 0.01f) {
+			diceRb.AddTorque(torqueDirection.normalized * 2f, ForceMode.Impulse);
+			Debug.Log($"Adjusting die {dice.diceId} rotation - angle: {angle:F1}°");
+		}
+		
+		// Wait a moment before allowing it to be checked again
+		diceStopped[dice.diceId] = false;
+		yield return new WaitForSeconds(0.5f);
 	}
 
 	private int GetFaceNumberFromCollider(Collider col, int diceId) {
@@ -81,7 +107,7 @@ public class DiceCheckZoneScript : MonoBehaviour {
 	}
 
 	public void Reset() {
-		Debug.Log("=== NEW ROUND STARTING ===");
+		Debug.Log("=== Rolling Dice ===");
 		diceNumbers.Clear();
 		diceStopped.Clear();
 		lastFaceCollisions.Clear();
