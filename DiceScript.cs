@@ -34,5 +34,9 @@ public class DiceScript : MonoBehaviour {
 		rb.angularVelocity = Vector3.zero;
 		rb.AddForce(transform.up * 500);
 		rb.AddTorque(dirX, dirY, dirZ);
+
+		Debug.Log($"Die {diceId} rolled with forces: " +
+				 $"Torque({dirX:F0}, {dirY:F0}, {dirZ:F0}), " +
+				 $"UpForce(500)");
 	}
 }
