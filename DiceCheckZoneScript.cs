@@ -57,7 +57,6 @@ public class DiceCheckZoneScript : MonoBehaviour {
 			int faceNumber = GetFaceNumberFromCollider(col, dice.diceId);
 			if (faceNumber != -1) {
 				diceNumbers[dice.diceId] = faceNumber;
-				Debug.Log($"Die {dice.diceId} STOPPED on face {faceNumber}");
 				GameManager.Instance.DieStopped(dice.diceId, faceNumber);
 			}
 		}
