@@ -46,16 +46,29 @@ public class GameManager : MonoBehaviour {
     }
 
     void RollDice() {
+        // TODO: Request new roll from server
+        // For testing, simulate server response:
+        int[] serverResults = new int[] { 
+            Random.Range(1, 7),
+            Random.Range(1, 7),
+            Random.Range(1, 7)
+        };
+        RollDiceWithResults(serverResults);
+    }
+
+    public void RollDiceWithResults(int[] targetValues) {
         roundComplete = false;
         scoreCalculated = false;
         diceZone.Reset();
+        
         foreach (var key in diceStopped.Keys.ToList()) {
             diceStopped[key] = false;
         }
 
         var dice = FindObjectsOfType<DiceScript>();
-        foreach (var die in dice) {
-            die.Roll();
+        for (int i = 0; i < dice.Length; i++) {
+            diceStopped[dice[i].diceId] = false;
+            dice[i].RollToTarget(targetValues[i]);
         }
     }
 
