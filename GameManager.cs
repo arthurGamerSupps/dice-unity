@@ -5,135 +5,85 @@ using System.Linq;
 using System.Collections;
 
 public class GameManager : MonoBehaviour {
-    public static GameManager Instance;
-    public DiceCheckZoneScript diceZone;
-    private Dictionary<int, bool> diceStopped = new Dictionary<int, bool>();
-    private bool roundComplete = false;
-    private float scoreDelay = 1.0f;
-    private bool scoreCalculated = false;
-
-    void Awake() {
-        if (Instance == null)
-            Instance = this;
-        else {
-            Destroy(gameObject);
-            return;
-        }
-
-        // Find zone if not assigned
-        if (diceZone == null) {
-            diceZone = FindFirstObjectByType<DiceCheckZoneScript>();
-        }
-
-        // Initialize all dice - REMOVE THIS SECTION
-        // var dice = FindObjectsOfType<DiceScript>();
-        // for (int i = 0; i < dice.Length; i++) {
-        //     dice[i].diceId = i + 1;
-        //     diceStopped[i + 1] = false;
-        // }
-
-        // NEW CODE: Use existing diceId values
-        var dice = FindObjectsOfType<DiceScript>();
-        foreach (var die in dice) {
-            diceStopped[die.diceId] = false;
-        }
-    }
-
+    public DiceScript[] dice;
+    private bool isRolling = false;
+    private float rollTimeout = 5f; // Maximum time for a roll sequence
+    
     void Update() {
         if (Input.GetKeyDown(KeyCode.Space)) {
-            RollDice();
+            Debug.Log("Space pressed");
+            if (!isRolling) {
+                RollDice();
+            }
         }
     }
 
     void RollDice() {
-        // TODO: Request new roll from server
-        // For testing, simulate server response:
-        int[] serverResults = new int[] { 
-            Random.Range(1, 7),
-            Random.Range(1, 7),
-            Random.Range(1, 7)
-        };
-        RollDiceWithResults(serverResults);
+        Debug.Log("Starting dice roll");
+        
+        // Check if dice array is properly initialized
+        if (dice == null || dice.Length == 0) {
+            Debug.LogError("No dice assigned to GameManager!");
+            return;
+        }
+        
+        // Create and populate target values
+        int[] targetValues = new int[dice.Length];
+        Debug.Log($"Rolling {dice.Length} dice");
+        
+        for (int i = 0; i < dice.Length; i++) {
+            targetValues[i] = Random.Range(1, 7);
+            Debug.Log($"Die {i} target: {targetValues[i]}");
+        }
+        
+        RollDiceWithResults(targetValues);
     }
 
     public void RollDiceWithResults(int[] targetValues) {
-        roundComplete = false;
-        scoreCalculated = false;
-        diceZone.Reset();
+        if (isRolling || targetValues.Length != dice.Length) return;
         
-        foreach (var key in diceStopped.Keys.ToList()) {
-            diceStopped[key] = false;
-        }
+        Debug.Log("=== Starting New Roll ===");
+        Debug.Log($"Target Values: {string.Join(", ", targetValues)}");
+        
+        isRolling = true;
+        StartCoroutine(ManageRollSequence(targetValues));
+    }
 
-        var dice = FindObjectsOfType<DiceScript>();
+    private IEnumerator ManageRollSequence(int[] targetValues) {
+        // Start all dice rolling simultaneously
         for (int i = 0; i < dice.Length; i++) {
-            diceStopped[dice[i].diceId] = false;
             dice[i].RollToTarget(targetValues[i]);
         }
-    }
 
-    public void DieStopped(int diceId, int number) {
-        if (!diceStopped[diceId]) {
-            diceStopped[diceId] = true;
-            Debug.Log($"Die {diceId} stopped with number: {number}");
-            
-            // Check if all dice have stopped
-            if (diceStopped.Values.All(stopped => stopped)) {
-                LogFinalRoundState();
-                roundComplete = true;
-                StartCoroutine(CalculateScoreAfterDelay());
-            }
-        }
-    }
+        float elapsedTime = 0f;
+        bool allSettled = false;
 
-    private IEnumerator CalculateScoreAfterDelay()
-    {
-        if (scoreCalculated) yield break;
-        
-        yield return new WaitForSeconds(scoreDelay);
-        
-        var diceValues = diceStopped.Keys.OrderBy(k => k)
-            .Select(diceId => diceZone.GetDiceNumber(diceId))
-            .ToArray();
-
-        // Check for invalid dice values (0 means die didn't settle properly)
-        if (diceValues.Any(v => v == 0))
-        {
-            Debug.Log("Some dice didn't settle properly - re-rolling stuck dice...");
-            
-            var dice = FindObjectsOfType<DiceScript>();
-            foreach (var die in dice)
-            {
-                if (diceZone.GetDiceNumber(die.diceId) == 0)
-                {
-                    diceStopped[die.diceId] = false;
-                    die.Roll();
-                    Debug.Log($"Re-rolling die {die.diceId}");
+        // Wait for all dice to settle or timeout
+        while (!allSettled && elapsedTime < rollTimeout) {
+            allSettled = true;
+            foreach (DiceScript die in dice) {
+                if (!die.IsSettled()) {
+                    allSettled = false;
+                    break;
                 }
             }
             
-            scoreCalculated = false;
-            yield break;
+            elapsedTime += Time.deltaTime;
+            yield return null;
         }
 
-        int score = CeeloScorer.CalculateScore(diceValues);
-        string description = CeeloScorer.GetScoreDescription(score);
-        
-        Debug.Log($"\n=== Cee-lo Score ===");
-        Debug.Log($"Dice: {string.Join("-", diceValues)}");
-        Debug.Log($"Result: {description}");
-        Debug.Log($"Score Value: {score}");
-        Debug.Log("==================\n");
-        
-        scoreCalculated = true;
+        // Force completion if timed out
+        if (!allSettled) {
+            foreach (DiceScript die in dice) {
+                die.ForceComplete();
+            }
+        }
+
+        isRolling = false;
     }
 
-    private void LogFinalRoundState() {
-        Debug.Log("\n=== Final Results ===");
-        foreach (var diceId in diceStopped.Keys.OrderBy(k => k)) {
-            int number = diceZone.GetDiceNumber(diceId);
-            Debug.Log($"Die {diceId}: {number}");
-        }
-        Debug.Log("===================\n");
+    // Helper method to check if any dice are currently rolling
+    public bool IsRolling() {
+        return isRolling;
     }
 } 
