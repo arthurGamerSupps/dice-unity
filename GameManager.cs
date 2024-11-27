@@ -9,6 +9,8 @@ public class GameManager : MonoBehaviour {
     public DiceCheckZoneScript diceZone;
     private Dictionary<int, bool> diceStopped = new Dictionary<int, bool>();
     private bool roundComplete = false;
+    private float scoreDelay = 1.0f;
+    private bool scoreCalculated = false;
 
     void Awake() {
         if (Instance == null)
@@ -45,6 +47,7 @@ public class GameManager : MonoBehaviour {
 
     void RollDice() {
         roundComplete = false;
+        scoreCalculated = false;
         diceZone.Reset();
         foreach (var key in diceStopped.Keys.ToList()) {
             diceStopped[key] = false;
@@ -65,8 +68,51 @@ public class GameManager : MonoBehaviour {
             if (diceStopped.Values.All(stopped => stopped)) {
                 LogFinalRoundState();
                 roundComplete = true;
+                StartCoroutine(CalculateScoreAfterDelay());
             }
         }
+    }
+
+    private IEnumerator CalculateScoreAfterDelay()
+    {
+        if (scoreCalculated) yield break;
+        
+        yield return new WaitForSeconds(scoreDelay);
+        
+        var diceValues = diceStopped.Keys.OrderBy(k => k)
+            .Select(diceId => diceZone.GetDiceNumber(diceId))
+            .ToArray();
+
+        // Check for invalid dice values (0 means die didn't settle properly)
+        if (diceValues.Any(v => v == 0))
+        {
+            Debug.Log("Some dice didn't settle properly - re-rolling stuck dice...");
+            
+            var dice = FindObjectsOfType<DiceScript>();
+            foreach (var die in dice)
+            {
+                if (diceZone.GetDiceNumber(die.diceId) == 0)
+                {
+                    diceStopped[die.diceId] = false;
+                    die.Roll();
+                    Debug.Log($"Re-rolling die {die.diceId}");
+                }
+            }
+            
+            scoreCalculated = false;
+            yield break;
+        }
+
+        int score = CeeloScorer.CalculateScore(diceValues);
+        string description = CeeloScorer.GetScoreDescription(score);
+        
+        Debug.Log($"\n=== Cee-lo Score ===");
+        Debug.Log($"Dice: {string.Join("-", diceValues)}");
+        Debug.Log($"Result: {description}");
+        Debug.Log($"Score Value: {score}");
+        Debug.Log("==================\n");
+        
+        scoreCalculated = true;
     }
 
     private void LogFinalRoundState() {

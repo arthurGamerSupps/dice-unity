@@ -7,7 +7,7 @@ using System.Linq;
 public class DiceNumberTextScript : MonoBehaviour {
 
 	Text text;
-	private int previousSum = -1;
+	private int previousScore = -1;
 	
 	// Use this for initialization
 	void Start () {
@@ -16,18 +16,24 @@ public class DiceNumberTextScript : MonoBehaviour {
 	
 	// Update is called once per frame
 	void Update () {
-		// Get all dice numbers and sum them
-		int currentSum = 0;
 		var diceZone = GameManager.Instance.diceZone;
 		var allDice = FindObjectsOfType<DiceScript>();
 		
-		foreach (var die in allDice) {
-			currentSum += diceZone.GetDiceNumber(die.diceId);
-		}
-
-		if (currentSum != previousSum) {
-			previousSum = currentSum;
-			text.text = $"{currentSum}";
+		// Get all dice values in order
+		var diceValues = allDice
+			.Select(die => diceZone.GetDiceNumber(die.diceId))
+			.ToArray();
+		
+		// Only calculate score if all dice have valid values
+		if (!diceValues.Contains(0)) {
+			int currentScore = CeeloScorer.CalculateScore(diceValues);
+			
+			if (currentScore != previousScore) {
+				previousScore = currentScore;
+				text.text = currentScore.ToString();
+			}
+		} else {
+			text.text = "...";
 		}
 	}
 }
